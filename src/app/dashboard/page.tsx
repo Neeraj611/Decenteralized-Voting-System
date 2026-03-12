@@ -77,8 +77,7 @@ export default function Dashboard() {
   };
 
   const renderDashboard = () => (
-    <div className="space-y-8">
-      {/* Header Section */}
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-headline font-bold text-accent">Voter Dashboard</h2>
@@ -90,7 +89,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-primary text-primary-foreground overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -134,7 +132,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Elections Content */}
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-md mb-8">
           <TabsTrigger value="active">Active</TabsTrigger>
@@ -243,7 +240,7 @@ export default function Dashboard() {
           const totalVotes = Object.values(results).reduce((a, b) => a + b, 0);
           
           return (
-            <Card key={election.id} className="border-none shadow-md">
+            <Card key={election.id} className="border-none shadow-md overflow-hidden">
               <CardHeader className="border-b bg-secondary/20">
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-xl font-headline text-accent">{election.title}</CardTitle>
@@ -256,7 +253,7 @@ export default function Dashboard() {
               <CardContent className="pt-6 space-y-6">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold">Candidate Standings</span>
-                  <span className="text-xs font-medium text-muted-foreground">{totalVotes} Total Votes Found</span>
+                  <span className="text-xs font-medium text-muted-foreground">{totalVotes} Total Votes Recorded</span>
                 </div>
                 <div className="space-y-4">
                   {election.candidates.map(candidate => {
@@ -276,6 +273,11 @@ export default function Dashboard() {
                       </div>
                     );
                   })}
+                  {totalVotes === 0 && (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No votes have been cast for this election yet.
+                    </div>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="bg-secondary/10 py-3 text-xs flex justify-between">
@@ -331,7 +333,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  chain.map((block) => (
+                  [...chain].reverse().map((block) => (
                     <tr key={block.hash} className="hover:bg-secondary/20 transition-colors group">
                       <td className="px-6 py-4 font-mono font-bold text-primary">#{block.index}</td>
                       <td className="px-6 py-4">
@@ -343,7 +345,7 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-mono text-xs">{block.data.voterId.substring(0, 10)}...</span>
+                        <span className="font-mono text-xs">{block.data.voterId}</span>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {new Date(block.timestamp).toLocaleString()}
@@ -354,7 +356,7 @@ export default function Dashboard() {
                         </Badge>
                       </td>
                     </tr>
-                  )).reverse()
+                  ))
                 )}
               </tbody>
             </table>
@@ -370,7 +372,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background font-body">
-      {/* Navigation Bar */}
       <nav className="sticky top-0 z-50 w-full bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveView('dashboard')}>
@@ -424,7 +425,6 @@ export default function Dashboard() {
         {activeView === 'history' && renderHistory()}
       </main>
 
-      {/* Voting Modal */}
       {selectedElection && (
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl border-none">
