@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from 'react';
@@ -50,7 +49,7 @@ export default function Dashboard() {
       const prevBlock = currentChain.length > 0 ? currentChain[currentChain.length - 1] : null;
       
       const newBlock = await createNewBlock(prevBlock, {
-        voterId: 'DV-12345678',
+        voterId: 'vishuu5044',
         electionId: selectedElection.id,
         candidateId: candidateId,
         timestamp: Date.now()
@@ -410,7 +409,7 @@ export default function Dashboard() {
               <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center text-primary">
                 <UserIcon size={14} />
               </div>
-              <span className="text-xs font-medium">DV-12345678</span>
+              <span className="text-xs font-medium">vishuu5044</span>
             </div>
             <Button variant="outline" size="icon" onClick={() => router.push('/')}>
               <LogOut size={18} />

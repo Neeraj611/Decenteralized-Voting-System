@@ -1,4 +1,3 @@
-
 import { Block } from './blockchain';
 
 export interface Candidate {
@@ -29,9 +28,12 @@ export const mockElections: Election[] = [
     status: 'active',
     imageUrl: 'https://picsum.photos/seed/vote2/600/400',
     candidates: [
-      { id: 'c1', name: 'Alice Thompson', party: 'Progressive Alliance' },
-      { id: 'c2', name: 'Robert Blake', party: 'Reform Party' },
-      { id: 'c3', name: 'Sarah Jenkins', party: 'Independent' }
+      { id: 'c1', name: 'Vishu', party: 'Progressive Alliance' },
+      { id: 'c2', name: 'Neeraj', party: 'Reform Party' },
+      { id: 'c3', name: 'Vanshika', party: 'Independent' },
+      { id: 'c8', name: 'Naman', party: 'Youth Coalition' },
+      { id: 'c9', name: 'Bhavishya', party: 'Green Future' },
+      { id: 'c10', name: 'Udit', party: 'Civic Union' }
     ]
   },
   {

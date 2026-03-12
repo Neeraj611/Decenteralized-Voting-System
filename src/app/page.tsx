@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from 'react';
@@ -82,7 +81,7 @@ export default function LandingPage() {
                     <Label htmlFor="voterId">Government ID / Voter ID</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input id="voterId" placeholder="DV-12345678" className="pl-10" required />
+                      <Input id="voterId" placeholder="vishuu5044" className="pl-10" required />
                     </div>
                   </div>
                 )}
