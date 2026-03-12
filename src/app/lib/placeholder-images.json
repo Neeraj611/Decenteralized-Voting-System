@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-voting",
+      "description": "Abstract secure digital voting illustration",
+      "imageUrl": "https://picsum.photos/seed/vote1/1200/600",
+      "imageHint": "digital security"
+    },
+    {
+      "id": "election-general",
+      "description": "City council election banner",
+      "imageUrl": "https://picsum.photos/seed/vote2/600/400",
+      "imageHint": "city hall"
+    },
+    {
+      "id": "election-tech",
+      "description": "Technology board election banner",
+      "imageUrl": "https://picsum.photos/seed/vote3/600/400",
+      "imageHint": "technology hardware"
+    }
+  ]
+}
