@@ -21,8 +21,8 @@ import {
   LayoutDashboard
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { mockElections, getResultsForElection, Election, addToChain } from '@/lib/store';
-import { createNewBlock, getVoteChain } from '@/lib/blockchain';
+import { mockElections, getResultsForElection, Election, addToChain, getVoteChain } from '@/lib/store';
+import { createNewBlock } from '@/lib/blockchain';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
