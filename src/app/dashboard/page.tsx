@@ -323,7 +323,6 @@ export default function Dashboard() {
   );
 }
 
-// Re-using lucide check for some icons
 function ShieldCheck({ size, className }: { size: number; className?: string }) {
   return (
     <svg 
