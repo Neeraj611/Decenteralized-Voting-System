@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { calculateHash } from '@/lib/blockchain';
+import { verifyVoteSignature } from '@/lib/blockchain';
 
 // Initialize Firebase Admin SDK (server-side only)
 function getAdminApp() {
@@ -43,13 +43,27 @@ export async function POST(request: NextRequest) {
 
         const { uid } = decodedToken;
         const body = await request.json();
-        const { electionId, candidateId } = body;
+        const { electionId, candidateId, timestamp, voterPublicKey, signature, epicNumber } = body;
 
-        if (!electionId || !candidateId) {
-            return NextResponse.json({ error: 'Missing electionId or candidateId' }, { status: 400 });
+        if (!electionId || !candidateId || !timestamp || !voterPublicKey || !signature) {
+            return NextResponse.json({ error: 'Missing transaction parameters (electionId, candidateId, timestamp, voterPublicKey, signature)' }, { status: 400 });
         }
 
-        // 2. Check for double-vote (server-side — cannot be bypassed)
+        // 2. Cryptographically verify the voter's transaction signature (server-side audit)
+        const isSigValid = await verifyVoteSignature(
+            uid,
+            electionId,
+            candidateId,
+            timestamp,
+            voterPublicKey,
+            signature
+        );
+
+        if (!isSigValid) {
+            return NextResponse.json({ error: 'Cryptographic signature verification failed. The transaction payload may have been tampered with.' }, { status: 400 });
+        }
+
+        // 3. Check for double-vote (server-side — cannot be bypassed)
         const votesRef = adminDb.collection('votes');
         const existingVote = await votesRef
             .where('voterId', '==', uid)
@@ -64,49 +78,54 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 3. Get latest block to chain from
-        const blocksRef = adminDb.collection('blocks');
-        const latestBlockSnap = await blocksRef.orderBy('index', 'desc').limit(1).get();
+        if (epicNumber) {
+            const existingEpicVote = await votesRef
+                .where('epicNumber', '==', epicNumber)
+                .where('electionId', '==', electionId)
+                .limit(1)
+                .get();
 
-        let previousHash = '0';
-        let nextIndex = 0;
-
-        if (!latestBlockSnap.empty) {
-            const latestBlock = latestBlockSnap.docs[0].data();
-            previousHash = latestBlock.hash;
-            nextIndex = latestBlock.index + 1;
+            if (!existingEpicVote.empty) {
+                return NextResponse.json(
+                    { error: 'This EPIC Voter ID has already cast a vote in this election.' },
+                    { status: 409 }
+                );
+            }
         }
 
-        // 4. Create the new block with real SHA-256 hash
-        const timestamp = Date.now();
-        const voteData = { voterId: uid, electionId, candidateId, timestamp };
-        const tempBlock = { index: nextIndex, timestamp, data: voteData, previousHash };
+        // 4. Save vote directly to the MEMPOOL (pending_votes) collection
+        const mempoolRef = adminDb.collection('pending_votes');
+        
+        const newTx = {
+            voterId: uid,
+            epicNumber: epicNumber || null,
+            electionId,
+            candidateId,
+            timestamp,
+            voterPublicKey,
+            signature,
+            createdAt: Timestamp.now()
+        };
 
-        // Re-implement hash here for server environment (no window.crypto available — use Node built-in)
-        const { createHash } = await import('crypto');
-        const str = tempBlock.index + tempBlock.previousHash + tempBlock.timestamp + JSON.stringify(tempBlock.data);
-        const hash = createHash('sha256').update(str).digest('hex');
-
-        const newBlock = { ...tempBlock, hash };
-
-        // 5. Write block and vote record atomically
         const batch = adminDb.batch();
+        
+        // Push unconfirmed transaction to Mempool
+        const txDoc = mempoolRef.doc();
+        batch.set(txDoc, newTx);
 
-        const blockDoc = blocksRef.doc();
-        batch.set(blockDoc, { ...newBlock, createdAt: Timestamp.now() });
-
+        // Instantly record vote double-voting guard
         const voteDoc = votesRef.doc();
         batch.set(voteDoc, {
             voterId: uid,
+            epicNumber: epicNumber || null,
             electionId,
             candidateId,
-            blockHash: hash,
-            timestamp: Timestamp.now(),
+            timestamp: Timestamp.now()
         });
 
         await batch.commit();
 
-        return NextResponse.json({ success: true, block: newBlock }, { status: 201 });
+        return NextResponse.json({ success: true, transaction: newTx }, { status: 201 });
     } catch (error: any) {
         console.error('[API/vote] Error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
