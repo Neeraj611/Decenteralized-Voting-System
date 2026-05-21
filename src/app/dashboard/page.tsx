@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,8 +23,9 @@ import {
   Hash
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { mockElections, getResultsForElection, Election, addToChain, getVoteChain } from '@/lib/store';
-import { createNewBlock } from '@/lib/blockchain';
+import { mockElections, Election } from '@/lib/store';
+import { Block } from '@/lib/blockchain';
+import { fetchVoteChain, submitVote } from '@/lib/blockchain-api';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -37,38 +38,62 @@ export default function Dashboard() {
   const [selectedElection, setSelectedElection] = useState<Election | null>(null);
   const [voting, setVoting] = useState(false);
   const [votedElections, setVotedElections] = useState<Set<string>>(new Set());
+  const [chain, setChain] = useState<Block[]>([]);
+  const [loadingChain, setLoadingChain] = useState(true);
 
-  const chain = getVoteChain();
+  useEffect(() => {
+    const loadChain = async () => {
+      try {
+        const ledger = await fetchVoteChain();
+        setChain(ledger);
+      } catch (error) {
+        console.error('Blockchain fetch failed', error);
+        toast({
+          variant: 'destructive',
+          title: 'Ledger load failed',
+          description: 'Unable to load blockchain ledger. Please refresh the page.',
+        });
+      } finally {
+        setLoadingChain(false);
+      }
+    };
+
+    loadChain();
+  }, []);
+
+  const getResultsForElectionFromChain = (electionId: string) => {
+    const counts: Record<string, number> = {};
+    chain.filter(block => block.data.electionId === electionId)
+      .forEach(block => {
+        counts[block.data.candidateId] = (counts[block.data.candidateId] || 0) + 1;
+      });
+    return counts;
+  };
 
   const handleVote = async (candidateId: string) => {
     if (!selectedElection) return;
-    
+
     setVoting(true);
     try {
-      const currentChain = getVoteChain();
-      const prevBlock = currentChain.length > 0 ? currentChain[currentChain.length - 1] : null;
-      
-      const newBlock = await createNewBlock(prevBlock, {
+      const response = await submitVote({
         voterId: 'vishuu5044',
         electionId: selectedElection.id,
-        candidateId: candidateId,
-        timestamp: Date.now()
+        candidateId,
       });
-      
-      addToChain(newBlock);
+
+      setChain(response.chain);
       setVotedElections(prev => new Set(prev).add(selectedElection.id));
-      
+
       toast({
-        title: "Vote Cast Successfully",
-        description: `Your vote has been cryptographically secured. Hash: ${newBlock.hash.substring(0, 12)}...`,
+        title: 'Vote Cast Successfully',
+        description: `Your vote has been recorded on the blockchain. Hash: ${response.block.hash.substring(0, 12)}...`,
       });
-      
       setSelectedElection(null);
     } catch (error) {
       toast({
-        variant: "destructive",
-        title: "Error casting vote",
-        description: "A cryptographic error occurred while generating the block.",
+        variant: 'destructive',
+        title: 'Error casting vote',
+        description: (error as Error).message || 'A blockchain error occurred while submitting your vote.',
       });
     } finally {
       setVoting(false);
@@ -235,7 +260,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {mockElections.map(election => {
-          const results = getResultsForElection(election.id);
+          const results = getResultsForElectionFromChain(election.id);
           const totalVotes = Object.values(results).reduce((a, b) => a + b, 0);
           
           return (
