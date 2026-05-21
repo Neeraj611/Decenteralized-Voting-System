@@ -1,3 +1,14 @@
+import { db } from './firebase';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  onSnapshot,
+  where,
+  Timestamp,
+} from 'firebase/firestore';
 import { Block } from './blockchain';
 
 export interface Candidate {
@@ -18,6 +29,7 @@ export interface Election {
   imageUrl: string;
 }
 
+// Static election data (can be migrated to Firestore later)
 export const mockElections: Election[] = [
   {
     id: 'e1',
@@ -33,8 +45,8 @@ export const mockElections: Election[] = [
       { id: 'c3', name: 'Vanshika', party: 'Independent' },
       { id: 'c8', name: 'Naman', party: 'Youth Coalition' },
       { id: 'c9', name: 'Bhavishya', party: 'Green Future' },
-      { id: 'c10', name: 'Udit', party: 'Civic Union' }
-    ]
+      { id: 'c10', name: 'Udit', party: 'Civic Union' },
+    ],
   },
   {
     id: 'e2',
@@ -46,8 +58,8 @@ export const mockElections: Election[] = [
     imageUrl: 'https://picsum.photos/seed/vote3/600/400',
     candidates: [
       { id: 'c4', name: 'Dr. Emily Chen', party: 'Innovation Group' },
-      { id: 'c5', name: 'Mark Zuckerberg Jr.', party: 'Web 3.0 Collective' }
-    ]
+      { id: 'c5', name: 'Mark Zuckerberg Jr.', party: 'Web 3.0 Collective' },
+    ],
   },
   {
     id: 'e3',
@@ -59,48 +71,96 @@ export const mockElections: Election[] = [
     imageUrl: 'https://picsum.photos/seed/vote1/600/400',
     candidates: [
       { id: 'c6', name: 'James Wilson', party: 'United Students' },
-      { id: 'c7', name: 'Maria Garcia', party: 'Liberty Guild' }
-    ]
-  }
+      { id: 'c7', name: 'Maria Garcia', party: 'Liberty Guild' },
+    ],
+  },
 ];
 
-// In-memory state for demonstration purposes
-// Initialized with some "completed" election data for visibility
-let voteChain: Block[] = [
-  {
-    index: 0,
-    timestamp: 1730457600000,
-    data: { voterId: 'SYS-GENESIS', electionId: 'e3', candidateId: 'c6', timestamp: 1730457600000 },
-    previousHash: '0',
-    hash: '89eb0a191f4a433a54d6d6a2f7f9b8c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6'
-  },
-  {
-    index: 1,
-    timestamp: 1730461200000,
-    data: { voterId: 'DV-99887766', electionId: 'e3', candidateId: 'c7', timestamp: 1730461200000 },
-    previousHash: '89eb0a191f4a433a54d6d6a2f7f9b8c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6',
-    hash: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2'
-  },
-  {
-    index: 2,
-    timestamp: 1730464800000,
-    data: { voterId: 'DV-55443322', electionId: 'e3', candidateId: 'c7', timestamp: 1730464800000 },
-    previousHash: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2',
-    hash: 'f2e1d0c9b8a765z4y3x2w1v0u9t8s7r6q5p4o3n2m1l0k9j8i7h6g5f4e3d2c1b0'
+// ─── Firestore collections ────────────────────────────────────────────────────
+
+const BLOCKS_COLLECTION = 'blocks';
+const VOTES_COLLECTION = 'votes';
+
+/**
+ * Fetch all blocks from Firestore, ordered by block index.
+ */
+export async function getVoteChain(): Promise<Block[]> {
+  const q = query(collection(db, BLOCKS_COLLECTION), orderBy('index', 'asc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data() as Block);
+}
+
+/**
+ * Subscribe to real-time block updates.
+ */
+export function subscribeToChain(callback: (blocks: Block[]) => void): () => void {
+  // Safe check for valid db instance
+  if (!db || typeof db.type !== 'string') {
+    console.warn('Firestore not initialized. Real-time updates disabled.');
+    return () => { };
   }
-];
-
-export const getVoteChain = () => voteChain;
-
-export const addToChain = (block: Block) => {
-  voteChain.push(block);
-};
-
-export const getResultsForElection = (electionId: string) => {
-  const votes = voteChain.filter(b => b.data.electionId === electionId);
-  const counts: Record<string, number> = {};
-  votes.forEach(v => {
-    counts[v.data.candidateId] = (counts[v.data.candidateId] || 0) + 1;
+  const q = query(collection(db, BLOCKS_COLLECTION), orderBy('index', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const blocks = snapshot.docs.map(doc => doc.data() as Block);
+    callback(blocks);
   });
+}
+
+/**
+ * Add a new block to Firestore.
+ */
+export async function addToChain(block: Block): Promise<void> {
+  await addDoc(collection(db, BLOCKS_COLLECTION), {
+    ...block,
+    createdAt: Timestamp.now(),
+  });
+}
+
+/**
+ * Check if a voter has already voted in a given election.
+ */
+export async function hasVoted(voterId: string, electionId: string): Promise<boolean> {
+  const q = query(
+    collection(db, VOTES_COLLECTION),
+    where('voterId', '==', voterId),
+    where('electionId', '==', electionId)
+  );
+  const snapshot = await getDocs(q);
+  return !snapshot.empty;
+}
+
+/**
+ * Record that a voter has voted in an election (for double-vote prevention).
+ */
+export async function recordVote(voterId: string, electionId: string): Promise<void> {
+  await addDoc(collection(db, VOTES_COLLECTION), {
+    voterId,
+    electionId,
+    timestamp: Timestamp.now(),
+  });
+}
+
+/**
+ * Get all election IDs that a voter has already voted in.
+ */
+export async function getVotedElections(voterId: string): Promise<string[]> {
+  const q = query(
+    collection(db, VOTES_COLLECTION),
+    where('voterId', '==', voterId)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data().electionId as string);
+}
+
+/**
+ * Compute vote tallies for an election from the blockchain.
+ */
+export function getResultsFromChain(chain: Block[], electionId: string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  chain
+    .filter(b => b.data.electionId === electionId)
+    .forEach(b => {
+      counts[b.data.candidateId] = (counts[b.data.candidateId] || 0) + 1;
+    });
   return counts;
-};
+}
